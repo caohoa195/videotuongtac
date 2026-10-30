@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .markdown-body p {
+    margin-bottom: 0;
+  }
+  .markdown-body p:not(:last-child) {
+    margin-bottom: 1rem;
+  }
+}
