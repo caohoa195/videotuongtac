@@ -1144,32 +1144,34 @@ function PreviewMode({
 
         {/* Question Overlay */}
         {activePoint && (
-          <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-6 z-10">
-            <div className="bg-white rounded-2xl p-8 max-w-2xl w-full shadow-2xl animate-in fade-in zoom-in duration-200">
-              <div className="mb-6">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-semibold text-indigo-600 uppercase tracking-wider">
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-3 sm:p-4 z-20">
+            <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-xl w-full max-h-[92%] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-150">
+              {/* Question Header & Title */}
+              <div className="mb-3 shrink-0">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">
                     Câu hỏi {currentQuestionIndex + 1} / {activePoint.questions.length}
                   </span>
-                  <span className="text-xs text-slate-500">Bắt buộc trả lời đúng để tiếp tục</span>
+                  <span className="text-[11px] text-slate-500 font-medium">Bắt buộc trả lời đúng</span>
                 </div>
-                <div className="text-2xl font-bold text-slate-800 markdown-body">
+                <div className="text-base sm:text-lg font-bold text-slate-800 markdown-body leading-snug line-clamp-3">
                   <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
                     {activePoint.questions[currentQuestionIndex].text}
                   </Markdown>
                 </div>
                 {activePoint.questions[currentQuestionIndex].imageUrl && (
-                  <div className="mt-4 flex justify-center">
+                  <div className="mt-2 flex justify-center">
                     <img 
                       src={activePoint.questions[currentQuestionIndex].imageUrl} 
                       alt="Question diagram" 
-                      className="max-h-64 rounded-xl shadow-sm border border-slate-200"
+                      className="max-h-36 rounded-lg shadow-xs border border-slate-200 object-contain"
                     />
                   </div>
                 )}
               </div>
 
-              <div className="space-y-3 mb-8">
+              {/* Options Container - Scrollable with compact buttons */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 my-1">
                 {(activePoint.questions[currentQuestionIndex].type === 'multiple_choice' || activePoint.questions[currentQuestionIndex].type === 'true_false') && activePoint.questions[currentQuestionIndex].options.map((opt, idx) => (
                   <button
                     key={idx}
@@ -1177,13 +1179,20 @@ function PreviewMode({
                       setSelectedAnswer(idx);
                       setShowError(false);
                     }}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl border-2 transition-all flex items-center gap-3 ${
                       selectedAnswer === idx
-                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-medium shadow-xs'
                         : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50 text-slate-700'
                     }`}
                   >
-                    <div className="markdown-body">
+                    <span className={`w-6 h-6 rounded-lg border text-xs font-bold flex items-center justify-center shrink-0 ${
+                      selectedAnswer === idx
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white border-slate-300 text-slate-600'
+                    }`}>
+                      {String.fromCharCode(65 + idx)}
+                    </span>
+                    <div className="markdown-body text-sm flex-1 leading-snug">
                       <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
                         {opt}
                       </Markdown>
@@ -1193,11 +1202,11 @@ function PreviewMode({
                 
                 {(activePoint.questions[currentQuestionIndex].type === 'fill_blank' || activePoint.questions[currentQuestionIndex].type === 'short_answer') && (
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-sm font-medium text-slate-700">Câu trả lời của bạn</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs font-bold text-slate-700">Câu trả lời của bạn</label>
                       <button 
                         onClick={() => setActiveMathInput(true)}
-                        className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-100 font-medium"
+                        className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold"
                       >
                         + Bàn phím Toán
                       </button>
@@ -1214,12 +1223,12 @@ function PreviewMode({
                           handleAnswerSubmit();
                         }
                       }}
-                      className="w-full p-4 border-2 border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500 outline-none text-lg"
+                      className="w-full px-3.5 py-2.5 border-2 border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
                       placeholder="Nhập câu trả lời của bạn (hỗ trợ LaTeX với $...$)..."
                       autoFocus
                     />
                     {textAnswer && (
-                      <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg min-h-[3rem] text-slate-800 markdown-body">
+                      <div className="mt-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg min-h-[2.5rem] text-slate-800 markdown-body text-xs">
                         <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
                           {textAnswer}
                         </Markdown>
@@ -1229,20 +1238,22 @@ function PreviewMode({
                 )}
               </div>
 
+              {/* Error Alert */}
               {showError && (
-                <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 animate-in slide-in-from-top-2">
-                  <XCircle className="w-5 h-5" />
+                <div className="my-2 p-2.5 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-xs font-medium animate-in slide-in-from-top-2 shrink-0">
+                  <XCircle className="w-4 h-4 shrink-0" />
                   <span>Câu trả lời chưa chính xác. Vui lòng thử lại!</span>
                 </div>
               )}
 
+              {/* Submit Button */}
               <button
                 onClick={handleAnswerSubmit}
                 disabled={(activePoint.questions[currentQuestionIndex].type === 'multiple_choice' || activePoint.questions[currentQuestionIndex].type === 'true_false') ? selectedAnswer === null : !textAnswer.trim()}
-                className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold text-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full mt-2 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0 shadow-sm"
               >
                 Xác nhận
-                <CheckCircle2 className="w-5 h-5" />
+                <CheckCircle2 className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -1313,36 +1324,63 @@ function ExportMode({
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
     <script defer src="https://unpkg.com/mathlive"></script>
     <style>
-        body { margin: 0; font-family: system-ui, sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
-        #player-container { position: relative; width: 100%; max-width: 1200px; aspect-ratio: 16/9; background: #000; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-        video { width: 100%; height: 100%; object-fit: contain; }
-        #overlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.9); z-index: 10; flex-direction: column; justify-content: center; align-items: center; padding: 2rem; }
-        .question-box { background: white; color: #0f172a; padding: 2rem; border-radius: 1rem; width: 100%; max-width: 600px; }
-        .options { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem; }
-        .option-btn { padding: 1rem; border: 2px solid #e2e8f0; border-radius: 0.5rem; background: transparent; cursor: pointer; text-align: left; font-size: 1rem; transition: all 0.2s; }
-        .option-btn:hover { border-color: #6366f1; background: #e0e7ff; }
-        .option-btn.selected { border-color: #4f46e5; background: #e0e7ff; }
-        .text-input { width: 100%; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 0.5rem; font-size: 1rem; outline: none; box-sizing: border-box; }
-        .text-input:focus { border-color: #4f46e5; }
-        .submit-btn { margin-top: 1.5rem; width: 100%; padding: 1rem; background: #4f46e5; color: white; border: none; border-radius: 0.5rem; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
-        .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .error-msg { color: #ef4444; margin-top: 1rem; display: none; text-align: center; font-weight: bold; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #0b0f19; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; padding: 1rem; }
+        #player-container { position: relative; width: 100%; max-width: 1100px; aspect-ratio: 16/9; background: #000; border-radius: 1rem; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7); }
+        video { width: 100%; height: 100%; object-fit: contain; background: #000; }
         
+        /* Overlay Question Box */
+        #overlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 20; justify-content: center; align-items: center; padding: 1rem; }
+        .question-box { background: white; color: #0f172a; padding: 1.25rem 1.5rem; border-radius: 1rem; width: 100%; max-width: 560px; max-height: 92%; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.4); }
+        .q-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; shrink: 0; }
+        .q-sub { color: #64748b; font-size: 0.7rem; font-weight: 500; }
+        #q-text { margin: 0 0 0.75rem 0; font-size: 1.15rem; font-weight: 700; line-height: 1.35; color: #1e293b; max-height: 4.5rem; overflow-y: auto; }
+        #q-image { margin-bottom: 0.75rem; text-align: center; display: none; max-height: 150px; overflow: hidden; }
+        #q-image img { max-width: 100%; max-height: 140px; border-radius: 0.5rem; border: 1px solid #e2e8f0; object-fit: contain; }
+        
+        .options-container { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; padding-right: 0.25rem; margin-bottom: 0.5rem; }
+        .option-btn { padding: 0.65rem 0.85rem; border: 2px solid #e2e8f0; border-radius: 0.6rem; background: #f8fafc; color: #334155; cursor: pointer; text-align: left; font-size: 0.875rem; transition: all 0.15s ease; display: flex; align-items: center; gap: 0.6rem; line-height: 1.3; }
+        .option-btn:hover { border-color: #818cf8; background: #f1f5f9; }
+        .option-btn.selected { border-color: #4f46e5; background: #eef2ff; color: #312e81; font-weight: 600; }
+        .opt-letter { width: 1.5rem; height: 1.5rem; border-radius: 0.35rem; background: #e2e8f0; color: #475569; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; shrink: 0; }
+        .option-btn.selected .opt-letter { background: #4f46e5; color: white; }
+        
+        .text-input { width: 100%; padding: 0.65rem 0.85rem; border: 2px solid #cbd5e1; border-radius: 0.5rem; font-size: 0.9rem; outline: none; }
+        .text-input:focus { border-color: #4f46e5; }
+        .submit-btn { margin-top: 0.5rem; width: 100%; padding: 0.7rem; background: #4f46e5; color: white; border: none; border-radius: 0.6rem; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.15s; shrink: 0; }
+        .submit-btn:hover:not(:disabled) { background: #4338ca; }
+        .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .error-msg { color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 0.5rem; padding: 0.5rem; margin-top: 0.5rem; font-size: 0.75rem; font-weight: 600; display: none; text-align: center; }
+        
+        /* Big Center Play Button (Useful if browser blocks autoplay) */
+        #centerPlayBtn { position: absolute; inset: 0; margin: auto; width: 64px; height: 64px; background: rgba(79, 70, 229, 0.9); border: none; border-radius: 50%; color: white; font-size: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 5; transition: transform 0.2s, background 0.2s; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        #centerPlayBtn:hover { transform: scale(1.1); background: #4338ca; }
+
         /* Custom Controls */
-        #controls { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.8)); padding: 1rem; display: flex; align-items: center; gap: 1rem; opacity: 0; transition: opacity 0.3s; }
+        #controls { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.85)); padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem; opacity: 0; transition: opacity 0.25s; z-index: 10; }
         #player-container:hover #controls { opacity: 1; }
-        .play-btn { background: none; border: none; color: white; cursor: pointer; font-size: 1.5rem; }
-        .progress-container { flex: 1; height: 6px; background: rgba(255,255,255,0.3); border-radius: 3px; position: relative; cursor: pointer; }
-        .progress-bar { height: 100%; background: #4f46e5; border-radius: 3px; width: 0%; pointer-events: none; }
+        .play-btn { background: none; border: none; color: white; cursor: pointer; font-size: 1.25rem; line-height: 1; padding: 0; }
+        .time-display { font-size: 0.75rem; font-family: monospace; color: #e2e8f0; }
+        .progress-container { flex: 1; height: 6px; background: rgba(255,255,255,0.25); border-radius: 3px; position: relative; cursor: pointer; }
+        .progress-bar { height: 100%; background: #6366f1; border-radius: 3px; width: 0%; pointer-events: none; }
         .progress-allowed { position: absolute; top: 0; left: 0; height: 100%; background: rgba(255,255,255,0.2); border-radius: 3px; width: 0%; pointer-events: none; }
-        .marker { position: absolute; width: 8px; height: 8px; background: #fbbf24; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); }
+        .marker { position: absolute; width: 8px; height: 8px; background: #fbbf24; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); transition: transform 0.15s; }
+        .marker:hover { transform: translate(-50%, -50%) scale(1.5); }
+        
+        /* Video load warning */
+        #loadWarning { display: none; position: absolute; top: 1rem; left: 1rem; right: 1rem; background: rgba(239, 68, 68, 0.9); color: white; padding: 0.5rem 0.75rem; border-radius: 0.5rem; font-size: 0.75rem; z-index: 25; text-align: center; }
     </style>
 </head>
 <body>
     <div id="player-container">
-        <video id="video" playsinline></video>
+        <video id="video" playsinline preload="auto">
+            Trình duyệt của bạn không hỗ trợ thẻ video HTML5.
+        </video>
+        <button id="centerPlayBtn" title="Bấm để phát video">▶</button>
+        <div id="loadWarning"></div>
         <div id="controls">
-            <button class="play-btn" id="playPauseBtn">▶</button>
+            <button class="play-btn" id="playPauseBtn" title="Phát / Tạm dừng">▶</button>
+            <span class="time-display" id="timeDisplay">0:00 / 0:00</span>
             <div class="progress-container" id="progressContainer">
                 <div class="progress-allowed" id="progressAllowed"></div>
                 <div class="progress-bar" id="progressBar"></div>
@@ -1351,15 +1389,15 @@ function ExportMode({
         </div>
         <div id="overlay">
             <div class="question-box">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; color: #64748b; font-size: 0.875rem; font-weight: bold; text-transform: uppercase;">
-                    <span id="q-counter">Question 1/1</span>
-                    <span>Bắt buộc trả lời đúng</span>
+                <div class="q-header">
+                    <span id="q-counter">Câu hỏi 1/1</span>
+                    <span class="q-sub">Bắt buộc trả lời đúng</span>
                 </div>
-                <h2 id="q-text" style="margin: 0 0 1.5rem 0; font-size: 1.5rem;"></h2>
-        <div id="q-image" style="margin-bottom: 1.5rem; display: none; text-align: center;">
-            <img id="q-img-src" style="max-width: 100%; max-height: 300px; border-radius: 0.5rem; border: 1px solid #e2e8f0;">
-        </div>
-                <div class="options" id="q-options"></div>
+                <div id="q-text"></div>
+                <div id="q-image">
+                    <img id="q-img-src" alt="Question illustration">
+                </div>
+                <div class="options-container" id="q-options"></div>
                 <div class="error-msg" id="q-error">Câu trả lời chưa chính xác. Vui lòng thử lại!</div>
                 <button class="submit-btn" id="q-submit" disabled>Xác nhận</button>
             </div>
@@ -1384,7 +1422,7 @@ function ExportMode({
       // 4. Add Player JS
       const jsContent = `
 document.addEventListener('DOMContentLoaded', () => {
-    const data = window.INTERACTIVE_DATA;
+    const data = window.INTERACTIVE_DATA || { videoSrc: '', questionPoints: [] };
     const video = document.getElementById('video');
     const overlay = document.getElementById('overlay');
     const qText = document.getElementById('q-text');
@@ -1396,12 +1434,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const qCounter = document.getElementById('q-counter');
     
     const playPauseBtn = document.getElementById('playPauseBtn');
+    const centerPlayBtn = document.getElementById('centerPlayBtn');
+    const timeDisplay = document.getElementById('timeDisplay');
     const progressContainer = document.getElementById('progressContainer');
     const progressBar = document.getElementById('progressBar');
     const progressAllowed = document.getElementById('progressAllowed');
     const markersContainer = document.getElementById('markers');
-
-    video.src = data.videoSrc;
+    const loadWarning = document.getElementById('loadWarning');
 
     let activePoint = null;
     let answeredPoints = new Set();
@@ -1409,10 +1448,31 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedAnswer = null;
     let textAnswer = '';
 
+    // Set video source safely
+    if (data.videoSrc) {
+        video.src = encodeURI(data.videoSrc);
+        video.load();
+    }
+
+    video.onerror = (e) => {
+        console.error('Video error:', e);
+        if (loadWarning) {
+            loadWarning.textContent = 'Không thể tải video: Vui lòng giải nén toàn bộ thư mục ZIP trước khi mở file index.html!';
+            loadWarning.style.display = 'block';
+        }
+    };
+
+    function formatTime(sec) {
+        if (!sec || isNaN(sec)) return '0:00';
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
     function getMaxAllowedTime() {
         const unansweredPoints = data.questionPoints.filter(p => !answeredPoints.has(p.id));
         unansweredPoints.sort((a, b) => a.time - b.time);
-        return unansweredPoints.length > 0 ? unansweredPoints[0].time : video.duration;
+        return unansweredPoints.length > 0 ? unansweredPoints[0].time : (video.duration || 0);
     }
 
     // Initialize SCORM
@@ -1420,21 +1480,35 @@ document.addEventListener('DOMContentLoaded', () => {
     SCORM.setStatus('incomplete');
 
     // Render markers
-    video.addEventListener('loadedmetadata', () => {
+    function initMarkers() {
+        markersContainer.innerHTML = '';
+        if (!video.duration) return;
         data.questionPoints.forEach(point => {
             const marker = document.createElement('div');
             marker.className = 'marker';
             marker.style.left = (point.time / video.duration * 100) + '%';
             marker.id = 'marker-' + point.id;
+            marker.title = 'Câu hỏi tại ' + formatTime(point.time);
             markersContainer.appendChild(marker);
         });
+    }
+
+    video.addEventListener('loadedmetadata', () => {
+        initMarkers();
+        if (timeDisplay) {
+            timeDisplay.textContent = formatTime(video.currentTime) + ' / ' + formatTime(video.duration);
+        }
     });
 
     video.addEventListener('timeupdate', () => {
         const time = video.currentTime;
+        const dur = video.duration || 1;
         
-        progressBar.style.width = (time / video.duration * 100) + '%';
-        progressAllowed.style.width = (getMaxAllowedTime() / video.duration * 100) + '%';
+        progressBar.style.width = (time / dur * 100) + '%';
+        progressAllowed.style.width = (getMaxAllowedTime() / dur * 100) + '%';
+        if (timeDisplay) {
+            timeDisplay.textContent = formatTime(time) + ' / ' + formatTime(dur);
+        }
 
         const point = data.questionPoints.find(p => 
             !answeredPoints.has(p.id) && time >= p.time && time < p.time + 1
@@ -1455,17 +1529,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    video.addEventListener('play', () => playPauseBtn.textContent = '⏸');
-    video.addEventListener('pause', () => playPauseBtn.textContent = '▶');
+    function updatePlayButtonUI() {
+        if (video.paused) {
+            playPauseBtn.textContent = '▶';
+            if (centerPlayBtn && !activePoint) centerPlayBtn.style.display = 'flex';
+        } else {
+            playPauseBtn.textContent = '⏸';
+            if (centerPlayBtn) centerPlayBtn.style.display = 'none';
+        }
+    }
 
-    playPauseBtn.addEventListener('click', () => {
+    video.addEventListener('play', updatePlayButtonUI);
+    video.addEventListener('pause', updatePlayButtonUI);
+
+    const togglePlayback = () => {
         if (activePoint) return;
-        if (video.paused) video.play();
-        else video.pause();
-    });
+        if (video.paused) {
+            video.play().catch(e => console.warn('Play interrupted:', e));
+        } else {
+            video.pause();
+        }
+    };
+
+    playPauseBtn.addEventListener('click', togglePlayback);
+    if (centerPlayBtn) centerPlayBtn.addEventListener('click', togglePlayback);
+    video.addEventListener('click', togglePlayback);
 
     progressContainer.addEventListener('click', (e) => {
-        if (activePoint) return;
+        if (activePoint || !video.duration) return;
         const rect = progressContainer.getBoundingClientRect();
         const pos = (e.clientX - rect.left) / rect.width;
         const targetTime = pos * video.duration;
@@ -1497,6 +1588,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderMarkdownWithMath(text, isInline = false) {
+        if (!text) return '';
         if (!window.marked) return text;
         
         const mathBlocks = [];
@@ -1538,6 +1630,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showQuestion() {
         overlay.style.display = 'flex';
+        if (centerPlayBtn) centerPlayBtn.style.display = 'none';
         selectedAnswer = null;
         textAnswer = '';
         qSubmit.disabled = true;
@@ -1564,9 +1657,16 @@ document.addEventListener('DOMContentLoaded', () => {
             q.options.forEach((opt, idx) => {
                 const btn = document.createElement('button');
                 btn.className = 'option-btn';
-                // Render markdown and math for options
-                btn.innerHTML = renderMarkdownWithMath(opt, true);
-                renderMathInElement(btn);
+                
+                const letter = document.createElement('span');
+                letter.className = 'opt-letter';
+                letter.textContent = String.fromCharCode(65 + idx);
+                btn.appendChild(letter);
+                
+                const label = document.createElement('span');
+                label.innerHTML = renderMarkdownWithMath(opt, true);
+                btn.appendChild(label);
+                renderMathInElement(label);
                 
                 btn.onclick = () => {
                     document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
@@ -1579,15 +1679,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } else if (q.type === 'fill_blank' || q.type === 'short_answer') {
             const labelContainer = document.createElement('div');
-            labelContainer.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;';
+            labelContainer.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;';
             
             const label = document.createElement('label');
-            label.textContent = 'Câu trả lời của bạn';
-            label.style.cssText = 'font-size: 0.875rem; font-weight: bold; color: #475569;';
+            label.textContent = 'Câu trả lời của bạn:';
+            label.style.cssText = 'font-size: 0.8rem; font-weight: bold; color: #475569;';
             
             const mathBtn = document.createElement('button');
             mathBtn.textContent = '+ Bàn phím Toán';
-            mathBtn.style.cssText = 'padding: 0.25rem 0.5rem; background: #e0e7ff; color: #4f46e5; border: none; border-radius: 0.25rem; cursor: pointer; font-size: 0.75rem; font-weight: bold;';
+            mathBtn.style.cssText = 'padding: 0.2rem 0.45rem; background: #e0e7ff; color: #4f46e5; border: none; border-radius: 0.25rem; cursor: pointer; font-size: 0.72rem; font-weight: bold;';
             
             labelContainer.appendChild(label);
             labelContainer.appendChild(mathBtn);
@@ -1599,11 +1699,11 @@ document.addEventListener('DOMContentLoaded', () => {
             mathFieldContainer.style.width = '100%';
             
             const mathField = document.createElement('math-field');
-            mathField.style.cssText = 'width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 0.25rem; font-size: 1.2rem; background: white; color: black; box-sizing: border-box;';
+            mathField.style.cssText = 'width: 100%; padding: 0.4rem; border: 1px solid #cbd5e1; border-radius: 0.25rem; font-size: 1rem; background: white; color: black; box-sizing: border-box;';
             
             const insertBtn = document.createElement('button');
             insertBtn.textContent = 'Chèn công thức';
-            insertBtn.style.cssText = 'margin-top: 0.5rem; padding: 0.5rem; background: #4f46e5; color: white; border: none; border-radius: 0.25rem; cursor: pointer; font-size: 0.875rem; font-weight: bold; width: 100%;';
+            insertBtn.style.cssText = 'margin-top: 0.35rem; padding: 0.4rem; background: #4f46e5; color: white; border: none; border-radius: 0.25rem; cursor: pointer; font-size: 0.8rem; font-weight: bold; width: 100%;';
             
             mathFieldContainer.appendChild(mathField);
             mathFieldContainer.appendChild(insertBtn);
@@ -1643,16 +1743,9 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             qOptions.appendChild(input);
             
-            // Add a preview area for math input
+            // Preview area
             const previewDiv = document.createElement('div');
-            previewDiv.className = 'mt-2 p-2 bg-slate-50 border border-slate-200 rounded min-h-[2.5rem] text-slate-800';
-            previewDiv.style.marginTop = '0.5rem';
-            previewDiv.style.padding = '0.5rem';
-            previewDiv.style.backgroundColor = '#f8fafc';
-            previewDiv.style.border = '1px solid #e2e8f0';
-            previewDiv.style.borderRadius = '0.25rem';
-            previewDiv.style.minHeight = '2.5rem';
-            previewDiv.style.color = '#1e293b';
+            previewDiv.style.cssText = 'margin-top: 0.35rem; padding: 0.4rem 0.6rem; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.35rem; min-height: 2rem; color: #1e293b; font-size: 0.8rem;';
             qOptions.appendChild(previewDiv);
             
             input.addEventListener('input', (e) => {
@@ -1682,10 +1775,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 showQuestion();
             } else {
                 answeredPoints.add(activePoint.id);
-                document.getElementById('marker-' + activePoint.id).style.background = '#4ade80';
+                const markerEl = document.getElementById('marker-' + activePoint.id);
+                if (markerEl) markerEl.style.background = '#4ade80';
                 activePoint = null;
                 overlay.style.display = 'none';
-                video.play();
+                video.play().catch(e => console.warn('Autoplay after answer prevented:', e));
             }
         } else {
             qError.style.display = 'block';
@@ -1854,6 +1948,16 @@ var SCORM = {
           {error}
         </div>
       )}
+
+      {/* Unzip Guide */}
+      <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-xl text-xs space-y-1">
+        <p className="font-bold text-amber-950 flex items-center gap-1.5">
+          <span>⚠️ Lưu ý quan trọng khi mở file đã tải về:</span>
+        </p>
+        <p>
+          Sau khi tải về, bạn <strong>bắt buộc phải Giải nén (Extract/Unzip)</strong> toàn bộ file ZIP ra thư mục trước khi mở <code>index.html</code>. Nếu mở trực tiếp bên trong file nén, trình duyệt sẽ không thể tải video và chỉ hiện màn hình đen.
+        </p>
+      </div>
 
       <div className="grid gap-6">
         {/* HTML5 Export */}
