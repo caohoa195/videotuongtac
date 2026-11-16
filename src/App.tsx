@@ -319,6 +319,9 @@ function EditMode({
     };
   }, [onTimeUpdate, onDurationLoaded]);
 
+  const editTrackRef = useRef<HTMLDivElement>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+
   const togglePlay = () => {
     if (videoRef.current) {
       if (isPlaying) videoRef.current.pause();
@@ -326,13 +329,14 @@ function EditMode({
     }
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = parseFloat(e.target.value);
-    if (videoRef.current) {
-      videoRef.current.currentTime = time;
-      setCurrentTime(time);
-      onTimeUpdate?.(time);
-    }
+  const seekEditToClientX = (clientX: number) => {
+    if (!editTrackRef.current || !videoRef.current || !duration) return;
+    const rect = editTrackRef.current.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const time = ratio * duration;
+    videoRef.current.currentTime = time;
+    setCurrentTime(time);
+    onTimeUpdate?.(time);
   };
 
   const handleAddQuestionClick = () => {
@@ -381,25 +385,50 @@ function EditMode({
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
             
-            <div className="flex-1 relative flex items-center">
-              <input
-                type="range"
-                min={0}
-                max={duration || 100}
-                value={currentTime}
-                onChange={handleSeek}
-                className="w-full h-2 bg-white/30 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-              />
+            <div
+              ref={editTrackRef}
+              onPointerDown={(e) => {
+                setIsScrubbing(true);
+                e.currentTarget.setPointerCapture(e.pointerId);
+                seekEditToClientX(e.clientX);
+              }}
+              onPointerMove={(e) => {
+                if (!isScrubbing) return;
+                seekEditToClientX(e.clientX);
+              }}
+              onPointerUp={(e) => {
+                if (isScrubbing) {
+                  setIsScrubbing(false);
+                  e.currentTarget.releasePointerCapture(e.pointerId);
+                }
+              }}
+              className="flex-1 relative flex items-center h-5 cursor-pointer select-none touch-none"
+            >
+              <div className="w-full h-2 bg-white/30 rounded-lg relative overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500 rounded-l-lg"
+                  style={{ width: `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%` }}
+                />
+              </div>
               {/* Markers */}
               {questionPoints.map((point) => (
                 <div
                   key={point.id}
-                  className="absolute w-3 h-3 bg-yellow-400 rounded-full cursor-pointer transform -translate-x-1/2 -translate-y-1/2 top-1/2 hover:scale-150 transition-transform"
-                  style={{ left: `${(point.time / duration) * 100}%` }}
-                  onClick={() => handleEditPoint(point.id)}
+                  className="absolute w-3 h-3 bg-yellow-400 rounded-full cursor-pointer transform -translate-x-1/2 -translate-y-1/2 top-1/2 hover:scale-150 transition-transform z-10 ring-1 ring-black/30"
+                  style={{ left: `${duration > 0 ? Math.min(100, (point.time / duration) * 100) : 0}%` }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditPoint(point.id);
+                  }}
                   title={`Câu hỏi tại ${formatTime(point.time)}`}
                 />
               ))}
+              {/* Playhead Thumb */}
+              <div
+                className="absolute w-4 h-4 bg-indigo-500 border-2 border-white rounded-full shadow-md transform -translate-x-1/2 -translate-y-1/2 top-1/2 pointer-events-none z-20"
+                style={{ left: `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%` }}
+              />
             </div>
 
             {/* Quick AI Question at current time */}
@@ -1081,11 +1110,15 @@ function PreviewMode({
   questionPoints: QuestionPoint[];
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const previewTrackRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isScrubbing, setIsScrubbing] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [activePoint, setActivePoint] = useState<QuestionPoint | null>(null);
   const [answeredPoints, setAnsweredPoints] = useState<Set<string>>(new Set());
+  const activePointRef = useRef<QuestionPoint | null>(null);
+  const answeredPointsRef = useRef<Set<string>>(new Set());
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -1094,44 +1127,77 @@ function PreviewMode({
   const [activeMathInput, setActiveMathInput] = useState<boolean>(false);
 
   useEffect(() => {
+    activePointRef.current = activePoint;
+  }, [activePoint]);
+
+  useEffect(() => {
+    answeredPointsRef.current = answeredPoints;
+  }, [answeredPoints]);
+
+  const getNextUnansweredPoint = (answeredSet: Set<string>) => {
+    return questionPoints
+      .filter(p => !answeredSet.has(p.id))
+      .sort((a, b) => a.time - b.time)[0];
+  };
+
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const handleTimeUpdate = () => {
+    const enforceBookmarkStop = () => {
+      const nextPoint = getNextUnansweredPoint(answeredPointsRef.current);
       const time = video.currentTime;
-      setCurrentTime(time);
 
-      // Check for question points
-      const point = questionPoints.find(p => 
-        !answeredPoints.has(p.id) && 
-        time >= p.time && 
-        time < p.time + 1 // 1 second window
-      );
-
-      if (point && !activePoint) {
+      if (nextPoint && time >= nextPoint.time && !activePointRef.current) {
         video.pause();
-        setActivePoint(point);
+        video.currentTime = nextPoint.time;
+        setCurrentTime(nextPoint.time);
+        activePointRef.current = nextPoint;
+        setActivePoint(nextPoint);
         setCurrentQuestionIndex(0);
         setSelectedAnswer(null);
         setTextAnswer('');
         setShowError(false);
+        return true;
+      }
+
+      setCurrentTime(time);
+      return false;
+    };
+
+    let rafId = 0;
+    const tick = () => {
+      if (!video.paused && !video.ended) {
+        const stopped = enforceBookmarkStop();
+        if (!stopped) {
+          rafId = requestAnimationFrame(tick);
+        }
       }
     };
 
+    const handleTimeUpdate = () => {
+      enforceBookmarkStop();
+    };
+
     const handleLoadedMetadata = () => setDuration(video.duration);
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
+    const handlePlay = () => {
+      setIsPlaying(true);
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(tick);
+    };
+    const handlePause = () => {
+      setIsPlaying(false);
+      cancelAnimationFrame(rafId);
+    };
 
     // Prevent seeking forward past unanswered questions
     const handleSeeking = () => {
-      const nextUnansweredPoint = questionPoints
-        .filter(p => !answeredPoints.has(p.id))
-        .sort((a, b) => a.time - b.time)[0];
-        
-      const maxAllowedTime = nextUnansweredPoint ? nextUnansweredPoint.time : video.duration;
+      const nextUnansweredPoint = getNextUnansweredPoint(answeredPointsRef.current);
+      const maxAllowedTime = nextUnansweredPoint ? nextUnansweredPoint.time : (video.duration || Infinity);
 
-      if (video.currentTime > maxAllowedTime + 0.5) {
+      if (video.currentTime > maxAllowedTime) {
         video.currentTime = maxAllowedTime;
+        setCurrentTime(maxAllowedTime);
       }
     };
 
@@ -1141,14 +1207,19 @@ function PreviewMode({
     video.addEventListener('pause', handlePause);
     video.addEventListener('seeking', handleSeeking);
 
+    if (!video.paused && !video.ended) {
+      rafId = requestAnimationFrame(tick);
+    }
+
     return () => {
+      cancelAnimationFrame(rafId);
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('seeking', handleSeeking);
     };
-  }, [questionPoints, answeredPoints, activePoint]);
+  }, [questionPoints]);
 
   const togglePlay = () => {
     if (activePoint) return; // Cannot play while answering questions
@@ -1158,28 +1229,18 @@ function PreviewMode({
     }
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (activePoint) return;
-    const time = parseFloat(e.target.value);
-    
-    const nextUnansweredPoint = questionPoints
-      .filter(p => !answeredPoints.has(p.id))
-      .sort((a, b) => a.time - b.time)[0];
-      
-    const maxAllowedTime = nextUnansweredPoint ? nextUnansweredPoint.time : duration;
+  const seekPreviewToClientX = (clientX: number) => {
+    if (activePoint || !previewTrackRef.current || !videoRef.current || !duration) return;
+    const rect = previewTrackRef.current.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const time = ratio * duration;
 
-    // Only allow seeking up to maxAllowedTime
-    if (time <= maxAllowedTime) {
-      if (videoRef.current) {
-        videoRef.current.currentTime = time;
-        setCurrentTime(time);
-      }
-    } else {
-      if (videoRef.current) {
-        videoRef.current.currentTime = maxAllowedTime;
-        setCurrentTime(maxAllowedTime);
-      }
-    }
+    const nextUnansweredPoint = getNextUnansweredPoint(answeredPointsRef.current);
+    const maxAllowedTime = nextUnansweredPoint ? nextUnansweredPoint.time : duration;
+    const clampedTime = Math.min(time, maxAllowedTime);
+
+    videoRef.current.currentTime = clampedTime;
+    setCurrentTime(clampedTime);
   };
 
   const handleAnswerSubmit = () => {
@@ -1206,7 +1267,11 @@ function PreviewMode({
         setTextAnswer('');
       } else {
         // All questions answered correctly
-        setAnsweredPoints(prev => new Set(prev).add(activePoint.id));
+        const updatedAnswered = new Set(answeredPointsRef.current);
+        updatedAnswered.add(activePoint.id);
+        answeredPointsRef.current = updatedAnswered;
+        activePointRef.current = null;
+        setAnsweredPoints(updatedAnswered);
         setActivePoint(null);
         if (videoRef.current) {
           videoRef.current.play();
@@ -1223,6 +1288,10 @@ function PreviewMode({
     const s = Math.floor(time % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
+
+  const nextAllowedTime = getNextUnansweredPoint(answeredPoints)?.time ?? duration;
+  const currentPct = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
+  const allowedPct = duration > 0 ? Math.min(100, (nextAllowedTime / duration) * 100) : 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -1244,30 +1313,53 @@ function PreviewMode({
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
             
-            <div className="flex-1 relative flex items-center">
-              <input
-                type="range"
-                min={0}
-                max={duration || 100}
-                value={currentTime}
-                onChange={handleSeek}
-                className="w-full h-2 bg-white/30 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-              />
-              {/* Progress Bar Fill for allowed seek area */}
-              <div 
-                className="absolute left-0 h-2 bg-indigo-500/30 rounded-l-lg pointer-events-none"
-                style={{ width: `${((questionPoints.filter(p => !answeredPoints.has(p.id)).sort((a, b) => a.time - b.time)[0]?.time ?? duration) / duration) * 100}%` }}
-              />
+            <div
+              ref={previewTrackRef}
+              onPointerDown={(e) => {
+                if (activePoint) return;
+                setIsScrubbing(true);
+                e.currentTarget.setPointerCapture(e.pointerId);
+                seekPreviewToClientX(e.clientX);
+              }}
+              onPointerMove={(e) => {
+                if (!isScrubbing || activePoint) return;
+                seekPreviewToClientX(e.clientX);
+              }}
+              onPointerUp={(e) => {
+                if (isScrubbing) {
+                  setIsScrubbing(false);
+                  e.currentTarget.releasePointerCapture(e.pointerId);
+                }
+              }}
+              className="flex-1 relative flex items-center h-5 cursor-pointer select-none touch-none"
+            >
+              <div className="w-full h-2 bg-white/30 rounded-lg relative overflow-hidden">
+                {/* Progress Bar Fill for allowed seek area */}
+                <div
+                  className="absolute left-0 top-0 bottom-0 bg-indigo-400/35 pointer-events-none"
+                  style={{ width: `${allowedPct}%` }}
+                />
+                {/* Current Progress Fill */}
+                <div
+                  className="absolute left-0 top-0 bottom-0 bg-indigo-500 pointer-events-none"
+                  style={{ width: `${currentPct}%` }}
+                />
+              </div>
               {/* Markers */}
               {questionPoints.map((point) => (
                 <div
                   key={point.id}
-                  className={`absolute w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-1/2 top-1/2 ${
+                  className={`absolute w-3 h-3 rounded-full transform -translate-x-1/2 -translate-y-1/2 top-1/2 pointer-events-none z-10 ring-1 ring-black/30 ${
                     answeredPoints.has(point.id) ? 'bg-green-400' : 'bg-yellow-400'
                   }`}
-                  style={{ left: `${(point.time / duration) * 100}%` }}
+                  style={{ left: `${duration > 0 ? Math.min(100, (point.time / duration) * 100) : 0}%` }}
                 />
               ))}
+              {/* Playhead Thumb */}
+              <div
+                className="absolute w-4 h-4 bg-indigo-500 border-2 border-white rounded-full shadow-md transform -translate-x-1/2 -translate-y-1/2 top-1/2 pointer-events-none z-20"
+                style={{ left: `${currentPct}%` }}
+              />
             </div>
           </div>
         </div>
@@ -1501,10 +1593,11 @@ function ExportMode({
         #player-container:hover #controls { opacity: 1; }
         .play-btn { background: none; border: none; color: white; cursor: pointer; font-size: 1.25rem; line-height: 1; padding: 0; }
         .time-display { font-size: 0.75rem; font-family: monospace; color: #e2e8f0; }
-        .progress-container { flex: 1; height: 6px; background: rgba(255,255,255,0.25); border-radius: 3px; position: relative; cursor: pointer; }
-        .progress-bar { height: 100%; background: #6366f1; border-radius: 3px; width: 0%; pointer-events: none; }
-        .progress-allowed { position: absolute; top: 0; left: 0; height: 100%; background: rgba(255,255,255,0.2); border-radius: 3px; width: 0%; pointer-events: none; }
-        .marker { position: absolute; width: 8px; height: 8px; background: #fbbf24; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); transition: transform 0.15s; }
+        .progress-container { flex: 1; height: 8px; background: rgba(255,255,255,0.25); border-radius: 4px; position: relative; cursor: pointer; }
+        .progress-bar { height: 100%; background: #6366f1; border-radius: 4px; width: 0%; pointer-events: none; position: relative; z-index: 1; }
+        .progress-allowed { position: absolute; top: 0; left: 0; height: 100%; background: rgba(255,255,255,0.2); border-radius: 4px; width: 0%; pointer-events: none; }
+        .marker { position: absolute; width: 10px; height: 10px; background: #fbbf24; border-radius: 50%; top: 50%; transform: translate(-50%, -50%); transition: transform 0.15s; z-index: 2; pointer-events: none; }
+        .progress-thumb { position: absolute; width: 14px; height: 14px; background: #6366f1; border: 2px solid #ffffff; border-radius: 50%; top: 50%; left: 0%; transform: translate(-50%, -50%); z-index: 3; pointer-events: none; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
         .marker:hover { transform: translate(-50%, -50%) scale(1.5); }
         
         /* Video load warning */
@@ -1525,6 +1618,7 @@ function ExportMode({
                 <div class="progress-allowed" id="progressAllowed"></div>
                 <div class="progress-bar" id="progressBar"></div>
                 <div id="markers"></div>
+                <div class="progress-thumb" id="progressThumb"></div>
             </div>
         </div>
         <div id="overlay">
@@ -1581,6 +1675,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const timeDisplay = document.getElementById('timeDisplay');
     const progressContainer = document.getElementById('progressContainer');
     const progressBar = document.getElementById('progressBar');
+    const progressThumb = document.getElementById('progressThumb');
     const progressAllowed = document.getElementById('progressAllowed');
     const markersContainer = document.getElementById('markers');
     const loadWarning = document.getElementById('loadWarning');
@@ -1612,10 +1707,26 @@ document.addEventListener('DOMContentLoaded', () => {
         return m + ':' + (s < 10 ? '0' : '') + s;
     }
 
-    function getMaxAllowedTime() {
+    function getNextUnansweredPoint() {
         const unansweredPoints = data.questionPoints.filter(p => !answeredPoints.has(p.id));
         unansweredPoints.sort((a, b) => a.time - b.time);
-        return unansweredPoints.length > 0 ? unansweredPoints[0].time : (video.duration || 0);
+        return unansweredPoints.length > 0 ? unansweredPoints[0] : null;
+    }
+
+    function getMaxAllowedTime() {
+        const nextPoint = getNextUnansweredPoint();
+        return nextPoint ? nextPoint.time : (video.duration || 0);
+    }
+
+    function updateProgressUI(time) {
+        const dur = video.duration || 1;
+        const pct = Math.min(100, Math.max(0, (time / dur) * 100)) + '%';
+        progressBar.style.width = pct;
+        if (progressThumb) progressThumb.style.left = pct;
+        progressAllowed.style.width = Math.min(100, (getMaxAllowedTime() / dur) * 100) + '%';
+        if (timeDisplay) {
+            timeDisplay.textContent = formatTime(time) + ' / ' + formatTime(dur);
+        }
     }
 
     // Initialize SCORM
@@ -1638,45 +1749,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
     video.addEventListener('loadedmetadata', () => {
         initMarkers();
-        if (timeDisplay) {
-            timeDisplay.textContent = formatTime(video.currentTime) + ' / ' + formatTime(video.duration);
-        }
+        updateProgressUI(video.currentTime);
     });
 
-    video.addEventListener('timeupdate', () => {
+    function enforceBookmarkStop() {
+        const nextPoint = getNextUnansweredPoint();
         const time = video.currentTime;
-        const dur = video.duration || 1;
-        
-        progressBar.style.width = (time / dur * 100) + '%';
-        progressAllowed.style.width = (getMaxAllowedTime() / dur * 100) + '%';
-        if (timeDisplay) {
-            timeDisplay.textContent = formatTime(time) + ' / ' + formatTime(dur);
-        }
 
-        const point = data.questionPoints.find(p => 
-            !answeredPoints.has(p.id) && time >= p.time && time < p.time + 1
-        );
-
-        if (point && !activePoint) {
+        if (nextPoint && time >= nextPoint.time && !activePoint) {
             video.pause();
-            activePoint = point;
+            video.currentTime = nextPoint.time;
+            updateProgressUI(nextPoint.time);
+            activePoint = nextPoint;
             currentQuestionIndex = 0;
             showQuestion();
+            return true;
         }
+
+        updateProgressUI(time);
+        return false;
+    }
+
+    let rafId = 0;
+    function tick() {
+        if (!video.paused && !video.ended) {
+            if (!enforceBookmarkStop()) {
+                rafId = requestAnimationFrame(tick);
+            }
+        }
+    }
+
+    video.addEventListener('timeupdate', () => {
+        enforceBookmarkStop();
     });
 
     video.addEventListener('seeking', () => {
         const maxAllowedTime = getMaxAllowedTime();
-        if (video.currentTime > maxAllowedTime + 0.5) {
+        if (video.currentTime > maxAllowedTime) {
             video.currentTime = maxAllowedTime;
+            updateProgressUI(maxAllowedTime);
         }
     });
 
     function updatePlayButtonUI() {
         if (video.paused) {
+            cancelAnimationFrame(rafId);
             playPauseBtn.textContent = '▶';
             if (centerPlayBtn && !activePoint) centerPlayBtn.style.display = 'flex';
         } else {
+            cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(tick);
             playPauseBtn.textContent = '⏸';
             if (centerPlayBtn) centerPlayBtn.style.display = 'none';
         }
@@ -1698,16 +1820,32 @@ document.addEventListener('DOMContentLoaded', () => {
     if (centerPlayBtn) centerPlayBtn.addEventListener('click', togglePlayback);
     video.addEventListener('click', togglePlayback);
 
-    progressContainer.addEventListener('click', (e) => {
+    let isDraggingProgress = false;
+    function scrubToClientX(clientX) {
         if (activePoint || !video.duration) return;
         const rect = progressContainer.getBoundingClientRect();
-        const pos = (e.clientX - rect.left) / rect.width;
+        const pos = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
         const targetTime = pos * video.duration;
         const maxAllowedTime = getMaxAllowedTime();
-        if (targetTime <= maxAllowedTime) {
-            video.currentTime = targetTime;
-        } else {
-            video.currentTime = maxAllowedTime;
+        const clampedTime = Math.min(targetTime, maxAllowedTime);
+        video.currentTime = clampedTime;
+        updateProgressUI(clampedTime);
+    }
+
+    progressContainer.addEventListener('pointerdown', (e) => {
+        if (activePoint || !video.duration) return;
+        isDraggingProgress = true;
+        progressContainer.setPointerCapture(e.pointerId);
+        scrubToClientX(e.clientX);
+    });
+    progressContainer.addEventListener('pointermove', (e) => {
+        if (!isDraggingProgress) return;
+        scrubToClientX(e.clientX);
+    });
+    progressContainer.addEventListener('pointerup', (e) => {
+        if (isDraggingProgress) {
+            isDraggingProgress = false;
+            progressContainer.releasePointerCapture(e.pointerId);
         }
     });
 
@@ -1924,6 +2062,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 activePoint = null;
                 overlay.style.display = 'none';
                 if (playerContainer) playerContainer.classList.remove('has-overlay');
+                updateProgressUI(video.currentTime);
                 video.play().catch(e => console.warn('Autoplay after answer prevented:', e));
             }
         } else {
