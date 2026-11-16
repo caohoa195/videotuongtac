@@ -10,6 +10,7 @@ import 'katex/dist/katex.min.css';
 import { DrawingEditorModal } from './components/DrawingEditorModal';
 import { OllamaSettingsModal } from './components/OllamaSettingsModal';
 import { OllamaQuestionGeneratorModal, FinalQuestionPointToAdd } from './components/OllamaQuestionGeneratorModal';
+import { GeminiQuestionGeneratorModal } from './components/GeminiQuestionGeneratorModal';
 import { 
   getSavedOllamaSettings, 
   saveOllamaSettings, 
@@ -19,6 +20,7 @@ import {
   generateDistractorsWithOllama,
   OLLAMA_DEFAULT_MODELS 
 } from './services/ollamaService';
+import { generateDistractorsWithGemini } from './services/geminiService';
 
 type QuestionType = 'multiple_choice' | 'true_false' | 'fill_blank' | 'short_answer';
 
@@ -44,11 +46,13 @@ export default function App() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [questionPoints, setQuestionPoints] = useState<QuestionPoint[]>([]);
 
-  // Local Ollama State
+  // Local Ollama & Gemini AI State
   const [ollamaSettings, setOllamaSettings] = useState<OllamaSettings>(getSavedOllamaSettings);
   const [isOllamaSettingsOpen, setIsOllamaSettingsOpen] = useState(false);
   const [isOllamaGeneratorOpen, setIsOllamaGeneratorOpen] = useState(false);
   const [generatorForCurrentTimeOnly, setGeneratorForCurrentTimeOnly] = useState(false);
+  const [isGeminiGeneratorOpen, setIsGeminiGeneratorOpen] = useState(false);
+  const [geminiForCurrentTimeOnly, setGeminiForCurrentTimeOnly] = useState(false);
   const [lastConnectionStatus, setLastConnectionStatus] = useState<OllamaConnectionResult | null>(null);
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
@@ -121,6 +125,19 @@ export default function App() {
             />
           </button>
 
+          {/* Google Gemini AI Quick Button */}
+          <button
+            onClick={() => {
+              setGeminiForCurrentTimeOnly(false);
+              setIsGeminiGeneratorOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 border border-sky-300/40 text-xs font-semibold text-white transition-all shadow-xs"
+            title="Tạo câu hỏi tương tác bằng Google Gemini AI"
+          >
+            <Sparkles className="w-4 h-4 text-amber-200" />
+            <span>Gemini AI</span>
+          </button>
+
           <button
             onClick={() => setMode('edit')}
             className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
@@ -181,6 +198,10 @@ export default function App() {
                   setGeneratorForCurrentTimeOnly(!!forCurrentTime);
                   setIsOllamaGeneratorOpen(true);
                 }}
+                onOpenGeminiGenerator={(forCurrentTime?: boolean) => {
+                  setGeminiForCurrentTimeOnly(!!forCurrentTime);
+                  setIsGeminiGeneratorOpen(true);
+                }}
                 onOpenOllamaSettings={() => setIsOllamaSettingsOpen(true)}
                 onTimeUpdate={(time) => setVideoCurrentTime(time)}
                 onDurationLoaded={(dur) => setVideoDuration(dur)}
@@ -226,6 +247,17 @@ export default function App() {
         insertDirectlyToCurrentPoint={generatorForCurrentTimeOnly}
         onApplyQuestions={handleApplyGeneratedPoints}
       />
+
+      {/* Gemini Question Generator Modal */}
+      <GeminiQuestionGeneratorModal
+        isOpen={isGeminiGeneratorOpen}
+        onClose={() => setIsGeminiGeneratorOpen(false)}
+        videoDuration={videoDuration}
+        currentTime={videoCurrentTime}
+        hasVideo={!!videoUrl}
+        insertDirectlyToCurrentPoint={geminiForCurrentTimeOnly}
+        onApplyQuestions={handleApplyGeneratedPoints}
+      />
     </div>
   );
 }
@@ -237,6 +269,7 @@ function EditMode({
   setQuestionPoints,
   ollamaSettings,
   onOpenOllamaGenerator,
+  onOpenGeminiGenerator,
   onOpenOllamaSettings,
   onTimeUpdate,
   onDurationLoaded,
@@ -246,6 +279,7 @@ function EditMode({
   setQuestionPoints: React.Dispatch<React.SetStateAction<QuestionPoint[]>>;
   ollamaSettings: OllamaSettings;
   onOpenOllamaGenerator: (forCurrentTime?: boolean) => void;
+  onOpenGeminiGenerator: (forCurrentTime?: boolean) => void;
   onOpenOllamaSettings: () => void;
   onTimeUpdate?: (time: number) => void;
   onDurationLoaded?: (duration: number) => void;
@@ -370,8 +404,17 @@ function EditMode({
 
             {/* Quick AI Question at current time */}
             <button
+              onClick={() => onOpenGeminiGenerator(true)}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 px-3 py-1.5 rounded-md text-sm font-semibold text-white transition-all shadow-sm shrink-0"
+              title="Tự động tạo câu hỏi tại thời điểm này bằng Gemini AI"
+            >
+              <Sparkles className="w-4 h-4 text-amber-200" />
+              Gemini
+            </button>
+
+            <button
               onClick={() => onOpenOllamaGenerator(true)}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 px-3 py-1.5 rounded-md text-sm font-semibold text-white transition-all shadow-sm"
+              className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 px-3 py-1.5 rounded-md text-sm font-semibold text-white transition-all shadow-sm shrink-0"
               title="Tự động tạo câu hỏi tại thời điểm này bằng AI Ollama"
             >
               <Sparkles className="w-4 h-4 text-amber-300" />
@@ -380,7 +423,7 @@ function EditMode({
 
             <button
               onClick={handleAddQuestionClick}
-              className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+              className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-md text-sm font-medium transition-colors shrink-0"
             >
               <Plus className="w-4 h-4" />
               Thêm câu hỏi
@@ -389,38 +432,45 @@ function EditMode({
         </div>
       </div>
 
-      {/* Ollama Local AI Quick Action Card */}
-      <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 border border-indigo-500/30">
-        <div className="flex items-center gap-3.5 w-full sm:w-auto">
+      {/* AI Assistants Quick Action Card */}
+      <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white rounded-2xl p-4 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4 border border-indigo-500/30">
+        <div className="flex items-center gap-3.5 w-full lg:w-auto">
           <div className="w-11 h-11 rounded-xl bg-indigo-500/20 flex items-center justify-center text-2xl shrink-0 border border-indigo-400/30">
-            🦙
+            ✨
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="text-sm font-bold text-white">Trợ lý AI Ollama Cục bộ</h4>
+              <h4 className="text-sm font-bold text-white">Trợ lý AI tạo câu hỏi (Gemini &amp; Ollama)</h4>
               <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
                 {ollamaSettings.selectedModelTag}
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
-              Hỗ trợ 4 mô hình: <strong>Qwen3.6 35B-A3B (Q4)</strong>, <strong>Gemma 4 12B</strong>, <strong>qwen2.5-coder:7b</strong>, <strong>gemma4:e4b</strong>. Tự động sinh câu hỏi và công thức Toán LaTeX ($...$).
+              Dùng <strong>Google Gemini</strong> đám mây hoặc <strong>Ollama cục bộ</strong> (Qwen3.6 35B-A3B, Gemma 4 12B, qwen2.5-coder:7b, gemma4:e4b) để tạo câu hỏi và công thức LaTeX ($...$).
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end shrink-0">
           <button
             onClick={() => onOpenOllamaSettings()}
             className="px-3.5 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5"
           >
             <Settings className="w-3.5 h-3.5 text-indigo-300" />
-            Cài đặt Model
+            Cài đặt Ollama
+          </button>
+          <button
+            onClick={() => onOpenGeminiGenerator(false)}
+            className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold rounded-lg text-xs transition-all shadow-md flex items-center gap-1.5"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+            Tạo bằng Gemini
           </button>
           <button
             onClick={() => onOpenOllamaGenerator(false)}
             className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold rounded-lg text-xs transition-all shadow-md flex items-center gap-1.5"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            Tạo bộ câu hỏi AI
+            Tạo bằng Ollama
           </button>
         </div>
       </div>
@@ -428,14 +478,22 @@ function EditMode({
       {/* List of Question Points */}
       {questionPoints.length > 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <h3 className="font-semibold text-slate-800">Các điểm dừng câu hỏi ({questionPoints.length})</h3>
-            <button
-              onClick={() => onOpenOllamaGenerator(false)}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 hover:underline"
-            >
-              <Sparkles className="w-3.5 h-3.5" /> Thêm câu hỏi với Ollama
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => onOpenGeminiGenerator(false)}
+                className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 hover:underline"
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Thêm với Gemini
+              </button>
+              <button
+                onClick={() => onOpenOllamaGenerator(false)}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 hover:underline"
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Thêm với Ollama
+              </button>
+            </div>
           </div>
           <div className="grid gap-3">
             {questionPoints.sort((a, b) => a.time - b.time).map((point) => (
@@ -489,12 +547,18 @@ function EditMode({
           <p className="text-slate-500 text-xs max-w-md mb-4 leading-relaxed">
             Bạn có thể tua video đến thời điểm mong muốn rồi bấm <strong>"Thêm câu hỏi"</strong> để tạo thủ công, hoặc bấm <strong>"Tạo bộ câu hỏi AI"</strong> để Ollama tự động phân tích và sinh câu hỏi tương tác.
           </p>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap justify-center gap-3">
             <button
               onClick={handleAddQuestionClick}
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" /> Thêm thủ công
+            </button>
+            <button
+              onClick={() => onOpenGeminiGenerator(false)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+            >
+              <Sparkles className="w-4 h-4 text-amber-200" /> Tạo tự động bằng Gemini
             </button>
             <button
               onClick={() => onOpenOllamaGenerator(false)}
@@ -514,6 +578,10 @@ function EditMode({
           onOpenOllamaGenerator={() => {
             setShowQuestionEditor(false);
             onOpenOllamaGenerator(true);
+          }}
+          onOpenGeminiGenerator={() => {
+            setShowQuestionEditor(false);
+            onOpenGeminiGenerator(true);
           }}
           onSave={(point) => {
             setQuestionPoints(prev => {
@@ -541,6 +609,7 @@ function QuestionEditor({
   onClose,
   ollamaSettings,
   onOpenOllamaGenerator,
+  onOpenGeminiGenerator,
 }: {
   currentTime: number;
   existingPoint?: QuestionPoint;
@@ -548,6 +617,7 @@ function QuestionEditor({
   onClose: () => void;
   ollamaSettings?: OllamaSettings;
   onOpenOllamaGenerator?: () => void;
+  onOpenGeminiGenerator?: () => void;
 }) {
   const [questions, setQuestions] = useState<Question[]>(
     existingPoint?.questions || [
@@ -558,6 +628,7 @@ function QuestionEditor({
   const [activeMathInput, setActiveMathInput] = useState<{ id: string, field: 'text' | 'correctAnswerText' | 'option', optIndex?: number } | null>(null);
   const [activeDrawingInput, setActiveDrawingInput] = useState<string | null>(null);
   const [isGeneratingDistractorsForId, setIsGeneratingDistractorsForId] = useState<string | null>(null);
+  const [isGeneratingGeminiDistractorsForId, setIsGeneratingGeminiDistractorsForId] = useState<string | null>(null);
 
   const handleGenerateDistractors = async (qId: string) => {
     if (!ollamaSettings) return;
@@ -593,6 +664,42 @@ function QuestionEditor({
       setError('Không thể tạo phương án với Ollama: ' + (err?.message || 'Lỗi không xác định'));
     } finally {
       setIsGeneratingDistractorsForId(null);
+    }
+  };
+
+  const handleGenerateDistractorsGemini = async (qId: string) => {
+    const q = questions.find(item => item.id === qId);
+    if (!q || !q.text.trim()) {
+      setError('Vui lòng nhập nội dung câu hỏi trước để Gemini sinh phương án nhiễu.');
+      return;
+    }
+    const correctAnswer = q.options[q.correctAnswerIndex]?.trim() || q.options[0]?.trim();
+    if (!correctAnswer) {
+      setError('Vui lòng nhập đáp án đúng trước để Gemini dựa vào đó sinh đáp án gây nhiễu.');
+      return;
+    }
+
+    setIsGeneratingGeminiDistractorsForId(qId);
+    setError(null);
+    try {
+      const distractors = await generateDistractorsWithGemini(q.text, correctAnswer);
+      setQuestions(prev => prev.map(item => {
+        if (item.id === qId) {
+          const newOpts = [...item.options];
+          let dIdx = 0;
+          for (let i = 0; i < newOpts.length; i++) {
+            if (i !== item.correctAnswerIndex && dIdx < distractors.length) {
+              newOpts[i] = distractors[dIdx++];
+            }
+          }
+          return { ...item, options: newOpts };
+        }
+        return item;
+      }));
+    } catch (err: any) {
+      setError('Không thể tạo phương án với Gemini: ' + (err?.message || 'Lỗi không xác định'));
+    } finally {
+      setIsGeneratingGeminiDistractorsForId(null);
     }
   };
 
@@ -680,7 +787,18 @@ function QuestionEditor({
               {existingPoint ? 'Chỉnh sửa câu hỏi' : 'Thêm câu hỏi mới'} tại {formatTime(existingPoint?.time ?? currentTime)}
             </h2>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {onOpenGeminiGenerator && (
+              <button
+                type="button"
+                onClick={onOpenGeminiGenerator}
+                className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+                title="Sử dụng Gemini AI để tạo câu hỏi tự động tại đây"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                <span>Gemini AI tạo nhanh</span>
+              </button>
+            )}
             {onOpenOllamaGenerator && (
               <button
                 type="button"
@@ -778,20 +896,32 @@ function QuestionEditor({
 
                 {q.type === 'multiple_choice' && (
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-wrap justify-between items-center gap-2">
                       <label className="block text-sm font-medium text-slate-700">Các lựa chọn (Chọn đáp án đúng)</label>
-                      {ollamaSettings && (
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          disabled={isGeneratingDistractorsForId === q.id}
-                          onClick={() => handleGenerateDistractors(q.id)}
-                          className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-md font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                          title="Dùng mô hình Ollama đang chọn để tự sinh 3 phương án sai"
+                          disabled={isGeneratingGeminiDistractorsForId === q.id}
+                          onClick={() => handleGenerateDistractorsGemini(q.id)}
+                          className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1 rounded-md font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                          title="Dùng Gemini AI tự sinh 3 phương án sai"
                         >
-                          <Sparkles className={`w-3.5 h-3.5 text-indigo-600 ${isGeneratingDistractorsForId === q.id ? 'animate-spin' : ''}`} />
-                          {isGeneratingDistractorsForId === q.id ? 'Đang suy luận...' : 'Ollama: Tạo 3 đáp án nhiễu'}
+                          <Sparkles className={`w-3.5 h-3.5 text-blue-600 ${isGeneratingGeminiDistractorsForId === q.id ? 'animate-spin' : ''}`} />
+                          {isGeneratingGeminiDistractorsForId === q.id ? 'Gemini đang tạo...' : 'Gemini: Tạo 3 đáp án nhiễu'}
                         </button>
-                      )}
+                        {ollamaSettings && (
+                          <button
+                            type="button"
+                            disabled={isGeneratingDistractorsForId === q.id}
+                            onClick={() => handleGenerateDistractors(q.id)}
+                            className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-md font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                            title="Dùng mô hình Ollama đang chọn để tự sinh 3 phương án sai"
+                          >
+                            <Sparkles className={`w-3.5 h-3.5 text-indigo-600 ${isGeneratingDistractorsForId === q.id ? 'animate-spin' : ''}`} />
+                            {isGeneratingDistractorsForId === q.id ? 'Đang suy luận...' : 'Ollama: Tạo 3 đáp án nhiễu'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {q.options.map((opt, optIndex) => (
                       <div key={optIndex} className="flex items-center gap-3">
@@ -1096,7 +1226,7 @@ function PreviewMode({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="bg-black rounded-xl overflow-hidden shadow-lg relative group">
+      <div className={`bg-black rounded-xl overflow-hidden shadow-lg relative group ${activePoint ? 'min-h-[420px] sm:min-h-[480px] flex items-center justify-center' : ''}`}>
         <video
           ref={videoRef}
           src={videoUrl}
@@ -1144,98 +1274,100 @@ function PreviewMode({
 
         {/* Question Overlay */}
         {activePoint && (
-          <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-3 sm:p-4 z-20">
-            <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-xl w-full max-h-[92%] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-150">
-              {/* Question Header & Title */}
-              <div className="mb-3 shrink-0">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">
-                    Câu hỏi {currentQuestionIndex + 1} / {activePoint.questions.length}
-                  </span>
-                  <span className="text-[11px] text-slate-500 font-medium">Bắt buộc trả lời đúng</span>
-                </div>
-                <div className="text-base sm:text-lg font-bold text-slate-800 markdown-body leading-snug line-clamp-3">
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-2.5 sm:p-4 z-20">
+            <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-xl w-full max-h-[94%] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-150">
+              {/* Compact 1-line Header (pinned) */}
+              <div className="flex justify-between items-center mb-2 shrink-0">
+                <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">
+                  Câu hỏi {currentQuestionIndex + 1} / {activePoint.questions.length}
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">Bắt buộc trả lời đúng</span>
+              </div>
+
+              {/* Scrollable Middle Body: Question text + Diagram + Options */}
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3 my-0.5">
+                <div className="text-base sm:text-lg font-bold text-slate-800 markdown-body leading-snug">
                   <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
                     {activePoint.questions[currentQuestionIndex].text}
                   </Markdown>
                 </div>
+
                 {activePoint.questions[currentQuestionIndex].imageUrl && (
-                  <div className="mt-2 flex justify-center">
+                  <div className="flex justify-center">
                     <img 
                       src={activePoint.questions[currentQuestionIndex].imageUrl} 
                       alt="Question diagram" 
-                      className="max-h-36 rounded-lg shadow-xs border border-slate-200 object-contain"
+                      className="max-h-24 sm:max-h-36 rounded-lg shadow-xs border border-slate-200 object-contain"
                     />
                   </div>
                 )}
-              </div>
 
-              {/* Options Container - Scrollable with compact buttons */}
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1 my-1">
-                {(activePoint.questions[currentQuestionIndex].type === 'multiple_choice' || activePoint.questions[currentQuestionIndex].type === 'true_false') && activePoint.questions[currentQuestionIndex].options.map((opt, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      setSelectedAnswer(idx);
-                      setShowError(false);
-                    }}
-                    className={`w-full text-left px-3.5 py-2.5 rounded-xl border-2 transition-all flex items-center gap-3 ${
-                      selectedAnswer === idx
-                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-medium shadow-xs'
-                        : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <span className={`w-6 h-6 rounded-lg border text-xs font-bold flex items-center justify-center shrink-0 ${
-                      selectedAnswer === idx
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-white border-slate-300 text-slate-600'
-                    }`}>
-                      {String.fromCharCode(65 + idx)}
-                    </span>
-                    <div className="markdown-body text-sm flex-1 leading-snug">
-                      <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                        {opt}
-                      </Markdown>
-                    </div>
-                  </button>
-                ))}
-                
-                {(activePoint.questions[currentQuestionIndex].type === 'fill_blank' || activePoint.questions[currentQuestionIndex].type === 'short_answer') && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-xs font-bold text-slate-700">Câu trả lời của bạn</label>
-                      <button 
-                        onClick={() => setActiveMathInput(true)}
-                        className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold"
-                      >
-                        + Bàn phím Toán
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      value={textAnswer}
-                      onChange={(e) => {
-                        setTextAnswer(e.target.value);
+                <div className="space-y-2">
+                  {(activePoint.questions[currentQuestionIndex].type === 'multiple_choice' || activePoint.questions[currentQuestionIndex].type === 'true_false') && activePoint.questions[currentQuestionIndex].options.map((opt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setSelectedAnswer(idx);
                         setShowError(false);
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleAnswerSubmit();
-                        }
-                      }}
-                      className="w-full px-3.5 py-2.5 border-2 border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                      placeholder="Nhập câu trả lời của bạn (hỗ trợ LaTeX với $...$)..."
-                      autoFocus
-                    />
-                    {textAnswer && (
-                      <div className="mt-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg min-h-[2.5rem] text-slate-800 markdown-body text-xs">
+                      className={`w-full text-left px-3.5 py-2.5 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                        selectedAnswer === idx
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-medium shadow-xs'
+                          : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <span className={`w-6 h-6 rounded-lg border text-xs font-bold flex items-center justify-center shrink-0 ${
+                        selectedAnswer === idx
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white border-slate-300 text-slate-600'
+                      }`}>
+                        {String.fromCharCode(65 + idx)}
+                      </span>
+                      <div className="markdown-body text-sm flex-1 leading-snug">
                         <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                          {textAnswer}
+                          {opt}
                         </Markdown>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </button>
+                  ))}
+                  
+                  {(activePoint.questions[currentQuestionIndex].type === 'fill_blank' || activePoint.questions[currentQuestionIndex].type === 'short_answer') && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-xs font-bold text-slate-700">Câu trả lời của bạn</label>
+                        <button 
+                          onClick={() => setActiveMathInput(true)}
+                          className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold"
+                        >
+                          + Bàn phím Toán
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={textAnswer}
+                        onChange={(e) => {
+                          setTextAnswer(e.target.value);
+                          setShowError(false);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleAnswerSubmit();
+                          }
+                        }}
+                        className="w-full px-3.5 py-2.5 border-2 border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                        placeholder="Nhập câu trả lời của bạn (hỗ trợ LaTeX với $...$)..."
+                        autoFocus
+                      />
+                      {textAnswer && (
+                        <div className="mt-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg min-h-[2.5rem] text-slate-800 markdown-body text-xs">
+                          <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                            {textAnswer}
+                          </Markdown>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Error Alert */}
@@ -1325,32 +1457,40 @@ function ExportMode({
     <script defer src="https://unpkg.com/mathlive"></script>
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #0b0f19; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; padding: 1rem; }
+        body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #0b0f19; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: auto; padding: 1rem; }
         #player-container { position: relative; width: 100%; max-width: 1100px; aspect-ratio: 16/9; background: #000; border-radius: 1rem; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7); }
+        #player-container.has-overlay { min-height: min(460px, 90vh); }
         video { width: 100%; height: 100%; object-fit: contain; background: #000; }
         
         /* Overlay Question Box */
-        #overlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 20; justify-content: center; align-items: center; padding: 1rem; }
-        .question-box { background: white; color: #0f172a; padding: 1.25rem 1.5rem; border-radius: 1rem; width: 100%; max-width: 560px; max-height: 92%; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.4); }
-        .q-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; shrink: 0; }
+        #overlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 20; justify-content: center; align-items: center; padding: 0.75rem 1rem; }
+        .question-box { background: white; color: #0f172a; padding: 1.25rem 1.5rem; border-radius: 1rem; width: 100%; max-width: 560px; max-height: 94%; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.4); }
+        .q-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.75rem; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0; }
         .q-sub { color: #64748b; font-size: 0.7rem; font-weight: 500; }
-        #q-text { margin: 0 0 0.75rem 0; font-size: 1.15rem; font-weight: 700; line-height: 1.35; color: #1e293b; max-height: 4.5rem; overflow-y: auto; }
-        #q-image { margin-bottom: 0.75rem; text-align: center; display: none; max-height: 150px; overflow: hidden; }
-        #q-image img { max-width: 100%; max-height: 140px; border-radius: 0.5rem; border: 1px solid #e2e8f0; object-fit: contain; }
+        .q-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.65rem; padding-right: 0.25rem; margin-bottom: 0.5rem; }
+        #q-text { margin: 0; font-size: 1.1rem; font-weight: 700; line-height: 1.35; color: #1e293b; flex-shrink: 0; }
+        #q-image { text-align: center; display: none; flex-shrink: 0; }
+        #q-image img { max-width: 100%; max-height: clamp(72px, 22vh, 140px); border-radius: 0.5rem; border: 1px solid #e2e8f0; object-fit: contain; }
         
-        .options-container { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; padding-right: 0.25rem; margin-bottom: 0.5rem; }
+        .options-container { display: flex; flex-direction: column; gap: 0.5rem; }
         .option-btn { padding: 0.65rem 0.85rem; border: 2px solid #e2e8f0; border-radius: 0.6rem; background: #f8fafc; color: #334155; cursor: pointer; text-align: left; font-size: 0.875rem; transition: all 0.15s ease; display: flex; align-items: center; gap: 0.6rem; line-height: 1.3; }
         .option-btn:hover { border-color: #818cf8; background: #f1f5f9; }
         .option-btn.selected { border-color: #4f46e5; background: #eef2ff; color: #312e81; font-weight: 600; }
-        .opt-letter { width: 1.5rem; height: 1.5rem; border-radius: 0.35rem; background: #e2e8f0; color: #475569; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; shrink: 0; }
+        .opt-letter { width: 1.5rem; height: 1.5rem; border-radius: 0.35rem; background: #e2e8f0; color: #475569; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
         .option-btn.selected .opt-letter { background: #4f46e5; color: white; }
         
         .text-input { width: 100%; padding: 0.65rem 0.85rem; border: 2px solid #cbd5e1; border-radius: 0.5rem; font-size: 0.9rem; outline: none; }
         .text-input:focus { border-color: #4f46e5; }
-        .submit-btn { margin-top: 0.5rem; width: 100%; padding: 0.7rem; background: #4f46e5; color: white; border: none; border-radius: 0.6rem; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.15s; shrink: 0; }
+        .submit-btn { margin-top: 0.5rem; width: 100%; padding: 0.7rem; background: #4f46e5; color: white; border: none; border-radius: 0.6rem; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
         .submit-btn:hover:not(:disabled) { background: #4338ca; }
         .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-        .error-msg { color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 0.5rem; padding: 0.5rem; margin-top: 0.5rem; font-size: 0.75rem; font-weight: 600; display: none; text-align: center; }
+        .error-msg { color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 0.5rem; padding: 0.5rem; margin-top: 0.5rem; font-size: 0.75rem; font-weight: 600; display: none; text-align: center; flex-shrink: 0; }
+        @media (max-width: 640px) {
+            body { padding: 0.5rem; }
+            #player-container.has-overlay { min-height: min(430px, 92vh); }
+            #overlay { padding: 0.5rem; }
+            .question-box { padding: 0.95rem 1rem; }
+        }
         
         /* Big Center Play Button (Useful if browser blocks autoplay) */
         #centerPlayBtn { position: absolute; inset: 0; margin: auto; width: 64px; height: 64px; background: rgba(79, 70, 229, 0.9); border: none; border-radius: 50%; color: white; font-size: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 5; transition: transform 0.2s, background 0.2s; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
@@ -1393,11 +1533,13 @@ function ExportMode({
                     <span id="q-counter">Câu hỏi 1/1</span>
                     <span class="q-sub">Bắt buộc trả lời đúng</span>
                 </div>
-                <div id="q-text"></div>
-                <div id="q-image">
-                    <img id="q-img-src" alt="Question illustration">
+                <div class="q-body">
+                    <div id="q-text"></div>
+                    <div id="q-image">
+                        <img id="q-img-src" alt="Question illustration">
+                    </div>
+                    <div class="options-container" id="q-options"></div>
                 </div>
-                <div class="options-container" id="q-options"></div>
                 <div class="error-msg" id="q-error">Câu trả lời chưa chính xác. Vui lòng thử lại!</div>
                 <button class="submit-btn" id="q-submit" disabled>Xác nhận</button>
             </div>
@@ -1423,6 +1565,7 @@ function ExportMode({
       const jsContent = `
 document.addEventListener('DOMContentLoaded', () => {
     const data = window.INTERACTIVE_DATA || { videoSrc: '', questionPoints: [] };
+    const playerContainer = document.getElementById('player-container');
     const video = document.getElementById('video');
     const overlay = document.getElementById('overlay');
     const qText = document.getElementById('q-text');
@@ -1629,6 +1772,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showQuestion() {
+        if (playerContainer) playerContainer.classList.add('has-overlay');
         overlay.style.display = 'flex';
         if (centerPlayBtn) centerPlayBtn.style.display = 'none';
         selectedAnswer = null;
@@ -1779,6 +1923,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (markerEl) markerEl.style.background = '#4ade80';
                 activePoint = null;
                 overlay.style.display = 'none';
+                if (playerContainer) playerContainer.classList.remove('has-overlay');
                 video.play().catch(e => console.warn('Autoplay after answer prevented:', e));
             }
         } else {
